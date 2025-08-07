@@ -5,8 +5,7 @@ function collectAllPanels() {
 
     if (!container) return [];
 
-    const items = container.querySelectorAll('li[data-panel-id]');
-    return Array.from(items).map(item => {
+    return Array.from(container.querySelectorAll('li[data-panel-id]')).map(item => {
         const panelId = item.getAttribute('data-panel-id') || 'unknown-richText';
         const inputs = {};
         item.querySelectorAll('.panel-input').forEach(el => {
@@ -63,16 +62,18 @@ function getProjectIdFromPage() {
 }
 
 function parsePageMeta() {
-    const iterator = document.createNodeIterator(document, NodeFilter.SHOW_COMMENT, null, false);
-    let commentNode;
-    while ((commentNode = iterator.nextNode())) {
-        const text = commentNode.nodeValue.trim();
+    const iter = document.createNodeIterator(document, NodeFilter.SHOW_COMMENT);
+    let node;
+    while ((node = iter.nextNode())) {
+        const text = node.nodeValue.trim();
         if (text.includes('User Name:')) {
             const meta = {};
-            text.split('\n').forEach(line => {
-                const [key, ...rest] = line.split(':');
-                if (key && rest.length) {
-                    meta[key.trim()] = rest.join(':').trim();
+            text.split(/\r?\n/).forEach(line => {
+                const idx = line.indexOf(':');
+                if (idx > -1) {
+                    const k = line.slice(0, idx).trim();
+                    const v = line.slice(idx + 1).trim();
+                    if (k && v) meta[k] = v;
                 }
             });
             return meta;
@@ -82,21 +83,23 @@ function parsePageMeta() {
 }
 
 function downloadJSON(data, projectId = '', meta = null) {
-    const pid = (meta?.['Project ID'] || projectId) || 'NOPROJECT';
-    const projectMetaName = meta.Project ?? 'NOPROJECTNAME';
-    const PageID = meta.Page ?? 'NOPAGE';
-    const projectName = projectMetaName.replace(/[^\w\d-]/g, '_');
-    const serverName = meta.Server ?? 'NOSERVER';
-    const now = new Date();
-    const timestamp = now
-        .toISOString()
-        .replace(/[:]/g, '-')
-        .split('.')[0];
+    const pid = meta?.['Project ID'] ?? projectId ?? 'NOPROJECT';
+    const rawProjectName = meta?.Project ?? 'NOPROJECTNAME';
+    const safeProjectName = rawProjectName.replace(/[^\w\d-]/g, '_');
+    const page = meta?.Page ?? 'NOPAGE';
+    const server = meta?.Server ?? 'NOSERVER';
+    const now = new Date().toISOString().replace(/[:]/g, '-').split('.')[0];
 
-    const filename = `SERVER_${serverName}--PROJECT_${projectName}--PID_${pid}--PAGE_${PageID}--DATE_${timestamp}--settings.json`;
+    const filename = `SERVER_${server}--PROJECT_${safeProjectName}--PID_${pid}--PAGE_${page}--DATE_${now}--settings.json`;
 
-    const payload = { meta, panels: data };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const payload = {
+        header: { pid, projectName: rawProjectName, page, server },
+        panels: data
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json'
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -105,30 +108,39 @@ function downloadJSON(data, projectId = '', meta = null) {
     URL.revokeObjectURL(url);
 }
 
-
-
 document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-json');
     const loadBtn = document.getElementById('load-json');
+    const infoText = document.querySelector('.info-text');
+
+    function setInfo(msg) {
+        infoText.textContent = msg;
+    }
 
     saveBtn.addEventListener('click', async () => {
+        setInfo('');
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-        chrome.scripting.executeScript({ target: { tabId: tab.id }, func: getProjectIdFromPage },
-            (projectRes) => {
+        chrome.scripting.executeScript(
+            { target: { tabId: tab.id }, func: getProjectIdFromPage },
+            projectRes => {
                 const projectId = projectRes?.[0]?.result || '';
-                chrome.scripting.executeScript({ target: { tabId: tab.id }, func: parsePageMeta },
-                    (metaRes) => {
+                chrome.scripting.executeScript(
+                    { target: { tabId: tab.id }, func: parsePageMeta },
+                    metaRes => {
                         const meta = metaRes?.[0]?.result || null;
-                        chrome.scripting.executeScript({ target: { tabId: tab.id }, func: collectAllPanels },
-                            (panelsRes) => {
+                        chrome.scripting.executeScript(
+                            { target: { tabId: tab.id }, func: collectAllPanels },
+                            panelsRes => {
                                 const panels = panelsRes?.[0]?.result || [];
                                 downloadJSON(panels, projectId, meta);
-                            });
-                    });
-            });
+                                setInfo('Export complete.');
+                            }
+                        );
+                    }
+                );
+            }
+        );
     });
-
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -137,30 +149,91 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(fileInput);
 
     loadBtn.addEventListener('click', () => {
+        setInfo('');
+        fileInput.value = null;
         fileInput.click();
     });
 
     fileInput.addEventListener('change', async () => {
+        setInfo('');
         const file = fileInput.files[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = async (e) => {
+        reader.onload = async e => {
             let data;
             try {
                 data = JSON.parse(e.target.result);
-            } catch (err) {
-                alert('Invalid JSON');
+            } catch {
+                setInfo('Invalid JSON file.');
+                infoText.classList.add('error');
+                return;
+            }
+            if (!data.header || !Array.isArray(data.panels)) {
+                setInfo('JSON missing required header or panels.');
+                infoText.classList.add('error');
                 return;
             }
 
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: loadAllPanels,
-                args: [data],
+            const [tab] = await chrome.tabs.query({
+                active: true,
+                currentWindow: true
             });
-        };
+            chrome.scripting.executeScript(
+                { target: { tabId: tab.id }, func: getProjectIdFromPage },
+                projectRes => {
+                    const currentPid = projectRes?.[0]?.result || '';
+                    chrome.scripting.executeScript(
+                        { target: { tabId: tab.id }, func: parsePageMeta },
+                        metaRes => {
+                            const currentMeta = metaRes?.[0]?.result || {};
+                            const mismatches = [];
 
+                            if (data.header.pid !== (currentMeta['Project ID'] ?? currentPid)) {
+                                mismatches.push(
+                                    `+ PID "${data.header.pid}" is not Current "${currentMeta['Project ID'] ??
+                                    currentPid}"`
+                                );
+                            }
+
+                            if (data.header.page !== currentMeta.Page) {
+                                mismatches.push(
+                                    `+ Page "${data.header.page}" is not Current "${currentMeta.Page}"`
+                                );
+                            }
+
+                            if (data.header.projectName !== currentMeta.Project) {
+                                mismatches.push(
+                                    `+ Project Name "${data.header.projectName}" is not Current "${currentMeta.Project}"`
+                                );
+                            }
+
+                            if (data.header.server !== currentMeta.Server) {
+                                mismatches.push(
+                                    `+ Server "${data.header.server}" is not Current "${currentMeta.Server}"`
+                                );
+                            }
+
+                            if (mismatches.length) {
+                                setInfo(
+                                    'Import aborted - header mismatch:\n' + mismatches.join('\n')
+                                );
+                                infoText.classList.add('error');
+                                return;
+                            }
+
+                            chrome.scripting.executeScript({
+                                target: { tabId: tab.id },
+                                func: loadAllPanels,
+                                args: [data.panels]
+                            });
+                            setInfo('Panels imported successfully.');
+                            infoText.classList.add('success');
+                        }
+                    );
+                }
+            );
+        };
         reader.readAsText(file);
     });
 });
