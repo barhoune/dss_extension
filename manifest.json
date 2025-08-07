@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "DSS Panel Backup",
+    "version": "1.0",
+    "description": "Save and autofill DSS panel data with JSON",
+    "permissions": [
+        "contextMenus",
+        "scripting",
+        "activeTab",
+        "storage"
+    ],
+    "background": {
+        "service_worker": "dss.js"
+    },
+    "action": {
+        "default_popup": "dss.html",
+        "default_icon": "dss.png"
+    },
+    "host_permissions": [
+        "https://dss.fosterwebmarketing.com/frontpage/*"
+    ]
+}

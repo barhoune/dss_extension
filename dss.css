@@ -1,0 +1,47 @@
+body {
+    font-family: system-ui, sans-serif;
+    padding: 16px;
+    width: 260px;
+    background: #f9f9f9;
+    color: #333;
+}
+
+h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    resize: vertical;
+    background: #fff;
+    color: #222;
+}
+
+button {
+    display: block;
+    margin-top: 10px;
+    padding: 8px;
+    width: 100%;
+    border: none;
+    background-color: #0077cc;
+    color: white;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+button:hover {
+    background-color: #005fa3;
+}
+
+/* https://maps.app.goo.gl/W4LVYbA3bUdtCB419 */
+/* <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3161.3441039663053!2d-77.563474724125!3d37.594059772031486!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89b114549475a0c9%3A0x75a15cc78a8a6efc!2sSmith%20Strong%2C%20PLC!5e0!3m2!1sen!2sus!4v1754332430060!5m2!1sen!2sus" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe> */
+/* 
+Metropolitan Richmond, VA */
