@@ -61,6 +61,34 @@ function getProjectIdFromPage() {
     return projectId;
 }
 
+function convertPanelsToCSV(header, panels) {
+    const allKeys = new Set();
+    panels.forEach(p => {
+        Object.keys(p.inputs).forEach(k => allKeys.add(k));
+    });
+
+    const keys = Array.from(allKeys);
+    const headerLine = ['panelId', ...keys].join(',');
+
+    const rows = panels.map(panel => {
+        const inputVals = keys.map(k => {
+            let val = panel.inputs[k];
+            if (val === undefined) return '';
+            if (typeof val === 'string') {
+                val = `"${val.replace(/"/g, '""')}"`;
+            }
+            return val;
+        });
+        return [panel.panelId, ...inputVals].join(',');
+    });
+
+    const comments = Object.entries(header).map(
+        ([k, v]) => `# ${k}: ${v}`
+    );
+
+    return [...comments, headerLine, ...rows].join('\n');
+}
+
 function parsePageMeta() {
     const iter = document.createNodeIterator(document, NodeFilter.SHOW_COMMENT);
     let node;
@@ -82,7 +110,7 @@ function parsePageMeta() {
     return null;
 }
 
-function downloadJSON(data, projectId = '', meta = null) {
+function downloadJSON(data, projectId = '', meta = null, isJson) {
     const pid = meta?.['Project ID'] ?? projectId ?? 'NOPROJECT';
     const rawProjectName = meta?.Project ?? 'NOPROJECTNAME';
     const safeProjectName = rawProjectName.replace(/[^\w\d-]/g, '_');
@@ -90,7 +118,7 @@ function downloadJSON(data, projectId = '', meta = null) {
     const server = meta?.Server ?? 'NOSERVER';
     const now = new Date().toISOString().replace(/[:]/g, '-').split('.')[0];
 
-    const filename = `SERVER_${server}--PROJECT_${safeProjectName}--PID_${pid}--PAGE_${page}--DATE_${now}--settings.json`;
+    const filenameBase = `SERVER_${server}--PROJECT_${safeProjectName}--PID_${pid}--PAGE_${page}--DATE_${now}`;
 
     const payload = {
         header: { pid, projectName: rawProjectName, page, server },
@@ -100,18 +128,32 @@ function downloadJSON(data, projectId = '', meta = null) {
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json'
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    const csvContent = convertPanelsToCSV(payload.header, data);
+    const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+
+    if (isJson) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filenameBase}--settings.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } else {
+        const csvUrl = URL.createObjectURL(csvBlob);
+        const csvLink = document.createElement('a');
+        csvLink.href = csvUrl;
+        csvLink.download = `${filenameBase}--settings.csv`;
+        csvLink.click();
+        URL.revokeObjectURL(csvUrl);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-json');
     const loadBtn = document.getElementById('load-json');
     const infoText = document.querySelector('.info-text');
+    const saveBtnCsv = document.getElementById('save-csv');
 
     function setInfo(msg) {
         infoText.textContent = msg;
@@ -132,7 +174,32 @@ document.addEventListener('DOMContentLoaded', () => {
                             { target: { tabId: tab.id }, func: collectAllPanels },
                             panelsRes => {
                                 const panels = panelsRes?.[0]?.result || [];
-                                downloadJSON(panels, projectId, meta);
+                                downloadJSON(panels, projectId, meta, true);
+                                setInfo('Export complete.');
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    });
+
+    saveBtnCsv.addEventListener('click', async () => {
+        setInfo('');
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.scripting.executeScript(
+            { target: { tabId: tab.id }, func: getProjectIdFromPage },
+            projectRes => {
+                const projectId = projectRes?.[0]?.result || '';
+                chrome.scripting.executeScript(
+                    { target: { tabId: tab.id }, func: parsePageMeta },
+                    metaRes => {
+                        const meta = metaRes?.[0]?.result || null;
+                        chrome.scripting.executeScript(
+                            { target: { tabId: tab.id }, func: collectAllPanels },
+                            panelsRes => {
+                                const panels = panelsRes?.[0]?.result || [];
+                                downloadJSON(panels, projectId, meta, false);
                                 setInfo('Export complete.');
                             }
                         );
