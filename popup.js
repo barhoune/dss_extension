@@ -194,14 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
         infoText.textContent = msg;
     }
 
-    saveBtn.addEventListener('click', async () => {
-        handleSaveClick(true);
-    });
-
-    saveBtnCsv.addEventListener('click', async () => {
-        handleSaveClick(false);
-    });
-
     async function handleSaveClick(isJson) {
         setInfo('');
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -238,7 +230,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fileInput.value = null;
         fileInput.click();
     });
+    
+    saveBtn.addEventListener('click', async () => {
+        handleSaveClick(true);
+    });
 
+    saveBtnCsv.addEventListener('click', async () => {
+        handleSaveClick(false);
+    });
+    
     fileInput.addEventListener('change', async () => {
         setInfo('');
         const file = fileInput.files[0];
@@ -285,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         reader.readAsText(file);
     });
-
 
     function validateImportData(data, currentMeta, currentPid) {
         const mismatches = [];
