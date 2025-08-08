@@ -21,6 +21,20 @@ function collectAllPanels() {
                 inputs[name] = el.checked;
             }
         });
+        const jsonField = item.querySelector('textarea.page-json-setting');
+        if (jsonField && jsonField.value.trim()) {
+            try {
+                const jsonData = JSON.parse(jsonField.value);
+                jsonData.forEach(field => {
+                    if (field.type === 'ckeditor' && field.name) {
+                        inputs[field.name] = field.value;
+                    }
+                });
+            } catch (e) {
+                console.warn(`Invalid JSON in panel ${panelId}`, e);
+            }
+        }
+
         return { panelId, inputs };
     });
 }
@@ -38,15 +52,25 @@ function loadAllPanels(dataArray) {
         Object.entries(entry.inputs).forEach(([name, val]) => {
             const el = item.querySelector(`[data-panel-name="${name}"]`);
             if (!el) return;
-
-            if (
-                el.tagName === 'SELECT' ||
-                el.tagName === 'TEXTAREA' ||
-                (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio')
+            const tag = el.tagName;
+            const type = el.type;
+            if (tag === 'TEXTAREA' && el.classList.contains('mceEditor')) {
+                const editorInstance = tinymce.get(el.id);
+                if (editorInstance) {
+                    editorInstance.setContent(val || '');
+                } else {
+                    el.value = val;
+                }
+            }
+            else if (
+                tag === 'SELECT' ||
+                tag === 'TEXTAREA' ||
+                (tag === 'INPUT' && type !== 'checkbox' && type !== 'radio')
             ) {
                 el.value = val;
                 el.dispatchEvent(new Event('change', { bubbles: true }));
-            } else if (el.type === 'checkbox' || el.type === 'radio') {
+            }
+            else if (type === 'checkbox' || type === 'radio') {
                 el.checked = !!val;
                 el.dispatchEvent(new Event('change', { bubbles: true }));
             }
@@ -62,31 +86,42 @@ function getProjectIdFromPage() {
 }
 
 function convertPanelsToCSV(header, panels) {
-    const allKeys = new Set();
-    panels.forEach(p => {
-        Object.keys(p.inputs).forEach(k => allKeys.add(k));
-    });
+    const rows = [];
+    const headerKeys = Object.keys(header);
+    const headerValues = headerKeys.map(k => `"${(header[k] ?? '').toString().replace(/"/g, '""')}"`);
+    rows.push(headerKeys.join(';'));
+    rows.push(headerValues.join(';'));
+    rows.push('');
 
-    const keys = Array.from(allKeys);
-    const headerLine = ['panelId', ...keys].join(',');
-
-    const rows = panels.map(panel => {
-        const inputVals = keys.map(k => {
-            let val = panel.inputs[k];
-            if (val === undefined) return '';
-            if (typeof val === 'string') {
-                val = `"${val.replace(/"/g, '""')}"`;
-            }
-            return val;
+    const flattened = panels.map(panel => {
+        const base = {};
+        Object.entries(panel.inputs).forEach(([key, value]) => {
+            base[`inputs.${key}`] = value;
         });
-        return [panel.panelId, ...inputVals].join(',');
+        return {
+            panelId: panel.panelId,
+            ...base
+        };
     });
 
-    const comments = Object.entries(header).map(
-        ([k, v]) => `# ${k}: ${v}`
-    );
+    const allKeys = new Set(['panelId']);
+    flattened.forEach(obj => Object.keys(obj).forEach(k => allKeys.add(k)));
+    const dataHeaders = Array.from(allKeys);
+    rows.push(dataHeaders.join(';'));
 
-    return [...comments, headerLine, ...rows].join('\n');
+    flattened.forEach(obj => {
+        const row = dataHeaders.map(h => {
+            const val = obj[h];
+            if (typeof val === 'string') {
+                return `"${val.replace(/"/g, '""')}"`;
+            }
+            if (val === null || val === undefined) return '';
+            return val.toString();
+        });
+        rows.push(row.join(';'));
+    });
+
+    return rows.join('\r\n');
 }
 
 function parsePageMeta() {
