@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             if (data.header.pid !== (currentMeta['Project ID'] ?? currentPid)) {
                                 mismatches.push(
-                                    `+ PID "${data.header.pid}" is not Current "${currentMeta['Project ID'] ??
+                                    `+ Project ID "${data.header.pid}" is not Current "${currentMeta['Project ID'] ??
                                     currentPid}"`
                                 );
                             }
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             if (mismatches.length) {
                                 setInfo(
-                                    'Import aborted - header mismatch:\n' + mismatches.join('\n')
+                                    'Import aborted due to header mismatch. \n \n Please check if you\'re in the right Project/Page/Host Env:\n \n' + mismatches.join('\n')
                                 );
                                 infoText.classList.add('error');
                                 return;
