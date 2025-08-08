@@ -145,7 +145,7 @@ function parsePageMeta() {
     return null;
 }
 
-function downloadJSON(data, projectId = '', meta = null, isJson) {
+function downloadFile(data, projectId = '', meta = null, isJson) {
     const pid = meta?.['Project ID'] ?? projectId ?? 'NOPROJECT';
     const rawProjectName = meta?.Project ?? 'NOPROJECTNAME';
     const safeProjectName = rawProjectName.replace(/[^\w\d-]/g, '_');
@@ -195,31 +195,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     saveBtn.addEventListener('click', async () => {
-        setInfo('');
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        chrome.scripting.executeScript(
-            { target: { tabId: tab.id }, func: getProjectIdFromPage },
-            projectRes => {
-                const projectId = projectRes?.[0]?.result || '';
-                chrome.scripting.executeScript(
-                    { target: { tabId: tab.id }, func: parsePageMeta },
-                    metaRes => {
-                        const meta = metaRes?.[0]?.result || null;
-                        chrome.scripting.executeScript(
-                            { target: { tabId: tab.id }, func: collectAllPanels },
-                            panelsRes => {
-                                const panels = panelsRes?.[0]?.result || [];
-                                downloadJSON(panels, projectId, meta, true);
-                                setInfo('Export complete.');
-                            }
-                        );
-                    }
-                );
-            }
-        );
+        handleSaveClick(true);
     });
 
     saveBtnCsv.addEventListener('click', async () => {
+        handleSaveClick(false);
+    });
+
+    async function handleSaveClick(isJson) {
         setInfo('');
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         chrome.scripting.executeScript(
@@ -234,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             { target: { tabId: tab.id }, func: collectAllPanels },
                             panelsRes => {
                                 const panels = panelsRes?.[0]?.result || [];
-                                downloadJSON(panels, projectId, meta, false);
+                                downloadFile(panels, projectId, meta, isJson);
                                 setInfo('Export complete.');
                             }
                         );
@@ -242,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
             }
         );
-    });
+    }
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
@@ -271,71 +254,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 infoText.classList.add('error');
                 return;
             }
-            if (!data.header || !Array.isArray(data.panels)) {
-                setInfo('JSON missing required header or panels.');
+
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            const [{ result: pidRes } = {}, { result: metaRes } = {}] = await Promise.all([
+                new Promise(res => chrome.scripting.executeScript(
+                    { target: { tabId: tab.id }, func: getProjectIdFromPage },
+                    ([r]) => res(r)
+                )),
+                new Promise(res => chrome.scripting.executeScript(
+                    { target: { tabId: tab.id }, func: parsePageMeta },
+                    ([r]) => res(r)
+                ))
+            ]);
+
+            const errorMsg = validateImportData(data, metaRes || {}, pidRes || '');
+            if (errorMsg) {
+                setInfo(errorMsg);
                 infoText.classList.add('error');
                 return;
             }
 
-            const [tab] = await chrome.tabs.query({
-                active: true,
-                currentWindow: true
+            chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: loadAllPanels,
+                args: [data.panels]
             });
-            chrome.scripting.executeScript(
-                { target: { tabId: tab.id }, func: getProjectIdFromPage },
-                projectRes => {
-                    const currentPid = projectRes?.[0]?.result || '';
-                    chrome.scripting.executeScript(
-                        { target: { tabId: tab.id }, func: parsePageMeta },
-                        metaRes => {
-                            const currentMeta = metaRes?.[0]?.result || {};
-                            const mismatches = [];
-
-                            if (data.header.pid !== (currentMeta['Project ID'] ?? currentPid)) {
-                                mismatches.push(
-                                    `+ Project ID "${data.header.pid}" is not Current "${currentMeta['Project ID'] ??
-                                    currentPid}"`
-                                );
-                            }
-
-                            if (data.header.page !== currentMeta.Page) {
-                                mismatches.push(
-                                    `+ Page "${data.header.page}" is not Current "${currentMeta.Page}"`
-                                );
-                            }
-
-                            if (data.header.projectName !== currentMeta.Project) {
-                                mismatches.push(
-                                    `+ Project Name "${data.header.projectName}" is not Current "${currentMeta.Project}"`
-                                );
-                            }
-
-                            if (data.header.server !== currentMeta.Server) {
-                                mismatches.push(
-                                    `+ Server "${data.header.server}" is not Current "${currentMeta.Server}"`
-                                );
-                            }
-
-                            if (mismatches.length) {
-                                setInfo(
-                                    'Import aborted due to header mismatch. \n \n Please check if you\'re in the right Project/Page/Host Env:\n \n' + mismatches.join('\n')
-                                );
-                                infoText.classList.add('error');
-                                return;
-                            }
-
-                            chrome.scripting.executeScript({
-                                target: { tabId: tab.id },
-                                func: loadAllPanels,
-                                args: [data.panels]
-                            });
-                            setInfo('Panels imported successfully.');
-                            infoText.classList.add('success');
-                        }
-                    );
-                }
-            );
+            setInfo('Panels imported successfully.');
+            infoText.classList.add('success');
         };
+
         reader.readAsText(file);
     });
+
+
+    function validateImportData(data, currentMeta, currentPid) {
+        const mismatches = [];
+        const pidCheck = currentMeta['Project ID'] ?? currentPid;
+
+        if (!data.header || !Array.isArray(data.panels)) {
+            return 'JSON missing required header or panels.';
+        }
+        if (data.header.pid !== pidCheck) {
+            mismatches.push(
+                `+ Project ID "${data.header.pid}" is not Current "${pidCheck}"`
+            );
+        }
+        if (data.header.page !== currentMeta.Page) {
+            mismatches.push(`+ Page "${data.header.page}" is not Current "${currentMeta.Page}"`);
+        }
+        if (data.header.projectName !== currentMeta.Project) {
+            mismatches.push(
+                `+ Project Name "${data.header.projectName}" is not Current "${currentMeta.Project}"`
+            );
+        }
+        if (data.header.server !== currentMeta.Server) {
+            mismatches.push(
+                `+ Server "${data.header.server}" is not Current "${currentMeta.Server}"`
+            );
+        }
+
+        if (mismatches.length) {
+            return (
+                'Import aborted due to header mismatch.\n\n' +
+                "Please check if you're in the right Project/Page/Host Env:\n\n" +
+                mismatches.join('\n')
+            );
+        }
+
+        return null;
+    }
 });
