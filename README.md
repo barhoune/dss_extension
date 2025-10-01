@@ -44,7 +44,7 @@ This browser extension allows developers working with DSS to save and restore as
         
     - **CSV** (experimental)
         
-3. Keep backups organized by project ID or Name for easier imports.
+3. Keep backups organized by project ID or Name for easier imports. 
     
 
 ---
