@@ -323,3 +323,76 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 });
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabContents = document.querySelectorAll(".tab-content");
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabButtons.forEach(b => b.classList.remove("active"));
+            tabContents.forEach(c => c.classList.remove("active"));
+
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.tab).classList.add("active");
+        });
+    });
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+    const liveBtn = document.getElementById("switch-live");
+    const testBtn = document.getElementById("switch-test");
+    const fedevBtn = document.getElementById("switch-fedev");
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs[0];
+        if (!tab || !tab.url) return;
+
+        const url = new URL(tab.url);
+        const host = url.hostname;
+
+        function getBase(hostname) {
+            let base = hostname.replace(/^www\./, "");
+
+            if (base.endsWith(".fosterwebmarketing.com")) {
+                base = base.replace(/\.fosterwebmarketing\.com$/, "");
+                if (base.endsWith("-fedev")) {
+                    base = base.replace(/-fedev$/, "");
+                }
+                return base;
+            }
+
+            return base.split(".")[0];
+        }
+
+        const base = getBase(host);
+
+        const targets = {
+            live: `${base}.com`,
+            staging: `${base}.fosterwebmarketing.com`,
+            fedev: `${base}-fedev.fosterwebmarketing.com`
+        };
+
+        function redirectWithFeedback(targetHost, btn, originalText) {
+            btn.textContent = "Redirecting...";
+            btn.disabled = true;
+            chrome.tabs.update(tab.id, { url: `${url.protocol}//${targetHost}${url.pathname}${url.search}${url.hash}`});
+            
+            const listener = (updatedTabId, changeInfo) => {
+                if (updatedTabId === tab.id && changeInfo.status === "complete") {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    chrome.tabs.onUpdated.removeListener(listener);
+                }
+            };
+            chrome.tabs.onUpdated.addListener(listener);
+        }
+
+        liveBtn.addEventListener("click", () => redirectWithFeedback(targets.live, liveBtn, "Switch to LIVE"));
+        testBtn.addEventListener("click", () => redirectWithFeedback(targets.staging, testBtn, "Switch to TEST"));
+        fedevBtn.addEventListener("click", () => redirectWithFeedback(targets.fedev, fedevBtn, "Switch to FEDEV"));
+    });
+});
+
+

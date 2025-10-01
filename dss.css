@@ -6,6 +6,43 @@ body {
     color: #353535;
 }
 
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 10px;
+}
+
+.tabs button {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    background: #f1f1f1;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: #485e75;
+}
+
+.tabs button:hover {
+    background: #e6e6e6;
+}
+button:disabled{
+    opacity: 50%;
+}
+.tabs button.active {    
+    border-bottom: 2px solid #0077cc;
+    font-weight: bold;
+    color: #0077cc;
+    border-radius: 0;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
 h3 {
     font-size: 16px;
     margin-bottom: 8px;
@@ -40,25 +77,30 @@ button {
 button:hover {
     background-color: #005fa3;
 }
-.info-text{
+
+.info-text {
     font-weight: bold;
     white-space: pre-line;
 }
-.success{
+
+.success {
     color: #3adb3a;
     text-align: center;
 }
-.error{
+
+.error {
     color: #c42525;
 }
-.dss-header{
+
+.dss-header {
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
     margin-bottom: 25px;
 }
-.dss-header span{
+
+.dss-header span {
     font-weight: 800;
     font-size: 20px;
     letter-spacing: 1px;

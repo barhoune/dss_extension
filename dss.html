@@ -1,15 +1,33 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Dss Saver</title>
-  <link rel="stylesheet" href="dss.css" />
-</head>
-<body>
-  <div class="dss-header"><img src="logo.png" alt="DSS LOGO"> <span> DSS PANEL BACKUP</span></div>  
-  <button title="Please make sure to fill all the values you wanna save before exporting" id="save-json">Export JSON</button>
-  <button title="Please make sure to fill all the values you wanna save before exporting" id="save-csv">Export CSV</button>
-  <button title="Please make sure you're in the right environement/project" id="load-json">Import JSON</button>
-  <p class="info-text"></p>
-  <script src="popup.js"></script>
-</body>
+  <head>
+    <title>Dss Saver</title>
+    <link rel="stylesheet" href="dss.css" />
+  </head>
+  <body>
+    <div class="dss-header">
+      <img src="logo.png" alt="DSS LOGO" />
+      <span>DSS PANEL BACKUP</span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="panel">Panel Management</button>
+      <button class="tab-btn" data-tab="domain">Switch Environment</button>
+    </div>
+
+    <div id="panel" class="tab-content active">
+      <button id="save-json" title="Fill all values before exporting"> Export JSON </button>
+      <button id="save-csv" title="Fill all values before exporting"> Export CSV </button>
+      <button id="load-json" title="Make sure you're in the right environment/project" > Import JSON </button>
+    </div>
+
+    <div id="domain" class="tab-content">
+      <button id="switch-live">  Switch to LIVE </button>
+      <button id="switch-test">  Switch to TEST </button>
+      <button id="switch-fedev"> Switch to FEDEV </button>
+    </div>
+
+    <p class="info-text"></p>
+    <script src="popup.js"></script>
+  </body>
 </html>
