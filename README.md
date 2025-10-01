@@ -20,7 +20,8 @@ This new version `(1.0.2)` also supports **environment switching**, allowing use
    - **Load unpacked**:  
       For development or debugging, load the root folder of the extension.
    - **Install via `.crx`**:  
-      Drag and drop the `.crx` file found under the `releases`.
+      Drag and drop the `.crx` file found under the [**releases**](./releases) folder.  
+      > **Important:** Keep the accompanying `.pem` file safe. It is used to generate future `.crx` updates with the same extension ID.
 
 4. In the extension settings:
 
